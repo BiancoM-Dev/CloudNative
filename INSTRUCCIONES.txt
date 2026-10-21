@@ -1,0 +1,134 @@
+================================================================================
+PROYECTO CLOUD NATIVE: MICROSERVICIOS CON RABBITMQ Y MYSQL
+================================================================================
+
+1. RESUMEN DEL PROYECTO
+--------------------------------------------------------------------------------
+Este proyecto implementa una arquitectura desacoplada orientada a eventos (EDA)
+siguiendo el patron Database-per-Service:
+
+- Microservicio Publicador (back-rabbitmq-publicador-seccion-1):
+  Recibe solicitudes HTTP REST con items de ventas/carrito de compras, valida y
+  persiste las ventas en su base de datos propia ("ventas_publicador"), y publica
+  los eventos a un broker RabbitMQ utilizando confirmaciones de entrega
+  (Publisher Confirms).
+
+- Broker de Mensajeria (RabbitMQ):
+  Recibe el mensaje en un Exchange de tipo Direct ("ventas.exchange"), y mediante
+  la Routing Key ("ventas.creada") lo deposita de forma persistente en una cola
+  durable ("ventas.queue").
+
+- Microservicio Consumidor (ventas-consumidor):
+  Escucha la cola "ventas.queue" de manera asincrona en tiempo real, deserializa
+  el mensaje y lo persiste en su base de datos propia ("ventas_consumidor").
+
+
+2. ESTRUCTURA DEL PROYECTO
+--------------------------------------------------------------------------------
+CloudNative/
+├── back-rabbitmq-publicador-seccion-1/  # Microservicio Publicador (Spring Boot)
+│   ├── src/
+│   ├── pom.xml
+│   └── mvnw
+├── ventas-consumidor/                  # Microservicio Consumidor (Spring Boot)
+│   ├── src/
+│   ├── pom.xml
+│   └── mvnw
+├── rabbitmq-server-aws/                # Scripts y configuracion de RabbitMQ (AWS / Linux)
+│   ├── compose.yaml
+│   └── setup-ubuntu-24.sh
+├── mysql-init/                         # Script de inicializacion de bases de datos
+│   └── init.sql
+├── docker-compose.yml                  # Orquestacion local de RabbitMQ y MySQL
+├── INSTRUCCIONES.txt                   # Instrucciones y paso a paso del proyecto
+└── README.md                           # Documentacion general
+
+
+3. REQUISITOS PREVIOS
+--------------------------------------------------------------------------------
+- Java Development Kit (JDK) 17 o superior
+- Maven 3.8+ (o utilizar el wrapper ./mvnw incluido)
+- Docker y Docker Compose (para despliegue local de RabbitMQ y MySQL)
+- Cliente HTTP para pruebas (Postman, Thunder Client o cURL)
+
+
+4. PASO A PASO PARA EJECUTAR EL PROYECTO
+--------------------------------------------------------------------------------
+
+PASO 1: LEVANTAR BROKER Y BASES DE DATOS (DOCKER)
+-------------------------------------------------
+En la raiz del proyecto, ejecutar:
+  docker compose up -d
+
+Esto iniciara:
+- RabbitMQ en los puertos 5672 (AMQP) y 15672 (Panel de Administracion Web).
+  Credenciales por defecto: guest / guest
+- MySQL en el puerto 3306, creando automaticamente las dos bases de datos:
+  * ventas_publicador
+  * ventas_consumidor
+
+*(Nota: En caso de desplegar en AWS, las instancias EC2 y RDS deben iniciarse
+segun la configuracion de seguridad y VPC establecida).*
+
+
+PASO 2: INICIAR MICROSERVICIO PUBLICADOR
+----------------------------------------
+Abrir una terminal en la carpeta "back-rabbitmq-publicador-seccion-1":
+  cd back-rabbitmq-publicador-seccion-1
+  ./mvnw spring-boot:run
+
+El servicio estara disponible en el puerto 8080.
+
+
+PASO 3: INICIAR MICROSERVICIO CONSUMIDOR
+----------------------------------------
+Abrir otra terminal en la carpeta "ventas-consumidor":
+  cd ventas-consumidor
+  ./mvnw spring-boot:run
+
+El servicio se conectara a RabbitMQ y quedara escuchando la cola "ventas.queue".
+
+
+PASO 4: PRUEBA FUNCIONAL (POSTMAN / cURL)
+-----------------------------------------
+Enviar una peticion POST al microservicio publicador:
+
+- Metodo: POST
+- URL: http://localhost:8080/api/v1/ventas
+- Headers:
+    Content-Type: application/json
+
+- Body (raw JSON):
+[
+  {
+    "nombreCliente": "Ana Perez",
+    "idCliente": 1001,
+    "idProducto": 200,
+    "nombreProducto": "Notebook Lenovo",
+    "precio": 650000,
+    "cantidad": 1
+  },
+  {
+    "nombreCliente": "Ana Perez",
+    "idCliente": 1001,
+    "idProducto": 201,
+    "nombreProducto": "Mouse Logitech",
+    "precio": 25000,
+    "cantidad": 2
+  }
+]
+
+Respuesta esperada:
+- Codigo HTTP: 201 Created
+- Body: Lista de items con sus IDs autoincrementables asignados.
+
+
+PASO 5: VERIFICACION
+--------------------
+1. En la consola del Consumidor, se observara la recepcion del mensaje JSON y
+   el log de persistencia exitosa.
+2. En MySQL, verificar que los datos fueron guardados tanto en la tabla de
+   "ventas_publicador" como en la tabla de "ventas_consumidor".
+3. En el panel web de RabbitMQ (http://localhost:15672), observar la actividad
+   en el exchange "ventas.exchange" y la cola "ventas.queue".
+================================================================================

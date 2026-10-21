@@ -1,0 +1,33 @@
+# ==============================================================================
+# .gitignore - Proyecto Cloud Native (Microservicios con RabbitMQ y MySQL)
+# ==============================================================================
+
+# Guías, documentación local y credenciales privadas
+indicaciones_y_guias/
+*.pem
+*.docx
+*.drawio.png
+Captura*.png
+*.log
+
+# Artefactos de compilación Java y Maven
+**/target/
+**/*.jar
+**/*.war
+**/*.class
+.mvn/wrapper/maven-wrapper.jar
+
+# Entornos de desarrollo e IDEs
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+.sts4-cache/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
